@@ -1,7 +1,7 @@
 """Curated suite of small, non-linear OpenML datasets for evaluating TabPFN and its distillations.
 
-The suite contains 60 datasets (50 classification + 10 regression), every one with <= 1000 rows and
-known non-linear structure (XOR / multiplicative interactions, multi-class geometry, signal / physics
+The suite contains 61 datasets (51 classification + 10 regression), almost all with <= 1000 rows
+(the canonical Titanic set is the sole exception at 1309) and known non-linear structure (XOR / multiplicative interactions, multi-class geometry, signal / physics
 data). This is exactly TabPFN's regime, and it is where a strong teacher / student pulls clearly ahead
 of a linear baseline -- so distillation gains are easy to see.
 
@@ -102,9 +102,11 @@ class DatasetSpec:
     task: Task
     n_rows: int
     note: str = ""
+    drop_cols: tuple[str, ...] = ()  # columns to drop before encoding (leaks / high-cardinality ids)
 
 
-# 50 small, non-linear classification datasets (all <= 1000 rows). data_id / row counts verified
+# 51 small, non-linear classification datasets (all <= 1000 rows except titanic at 1309). data_id /
+# row counts verified
 # against OpenML (data/qualities + data/{id} metadata endpoints).
 CLASSIFICATION_DATASETS: list[DatasetSpec] = [
     DatasetSpec("tic-tac-toe", 50, "classification", 958, "XOR-like win patterns, pure interaction"),
@@ -117,6 +119,11 @@ CLASSIFICATION_DATASETS: list[DatasetSpec] = [
     DatasetSpec("ilpd", 1480, "classification", 583, "Indian liver patient, non-linear medical"),
     DatasetSpec("balance-scale", 11, "classification", 625, "target is a product (distance x weight)"),
     DatasetSpec("blood-transfusion", 1464, "classification", 748, "non-linear recency / frequency"),
+    DatasetSpec(
+        "titanic", 40945, "classification", 1309,
+        "survival from passenger features, non-linear interactions (sex x class x age)",
+        drop_cols=("name", "ticket", "cabin", "home.dest", "boat", "body"),
+    ),
     # --- 40 additional small classification datasets ---
     DatasetSpec("heart-statlog", 53, "classification", 270, "Statlog heart disease, non-linear medical"),
     DatasetSpec("glass", 41, "classification", 214, "6-class glass type from oxide composition"),
@@ -243,6 +250,9 @@ class OpenMLBenchmark:
         )
         X_df: pd.DataFrame = bunch.data
         y_raw: pd.Series = bunch.target
+
+        if spec.drop_cols:
+            X_df = X_df.drop(columns=list(spec.drop_cols), errors="ignore")
 
         # Anything non-numeric (object / category / pandas string / bool) is one-hot encoded; the rest
         # is numeric. Booleans are forced categorical so they are encoded rather than median-imputed.
@@ -405,7 +415,7 @@ class OpenMLBenchmark:
 def main() -> None:
     """Light demo: print the registry and load one classification dataset."""
     bench = OpenMLBenchmark()
-    print("Benchmark suite (60 datasets):")
+    print("Benchmark suite (61 datasets):")
     print(bench.list().to_string(index=False))
 
     ds = bench.load(CLASSIFICATION_DATASETS[0].name)
